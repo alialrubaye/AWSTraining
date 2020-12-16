@@ -1,0 +1,144 @@
+AWSTemplateFormatVersion: 2010-09-09
+# This CloudFormation template deploys a basic VPC / Network. 
+
+
+Resources:
+  AliVPC1512:
+    Type: 'AWS::EC2::VPC'
+    Properties: 
+      CidrBlock: 10.200.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: Ali-VPC-1512
+      
+  AliPublicSubnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref AliVPC1512
+      CidrBlock: 10.200.1.0/24
+      AvailabilityZone: us-west-2a
+      Tags:
+        - Key: Name
+          Value: Ali-Public-Subnet
+  
+  AliPrivateSubnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref AliVPC1512
+      CidrBlock: 10.200.2.0/24
+      AvailabilityZone: us-west-2b  
+      Tags:
+        - Key: Name
+          Value: Ali-Pravte-Subnet
+      
+  
+  AliIGW:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+        Tags:
+        - Key: Name
+          Value: Ali-IGW
+  AttachGateway:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref AliVPC1512
+      InternetGatewayId: !Ref AliIGW
+  
+  AliPublicRT:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref AliVPC1512
+      Tags:
+        - Key: Name
+          Value: Ali-Public-RT
+  DefaultRoute:
+    Type: 'AWS::EC2::Route'
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref AliPublicRT
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref AliIGW
+  
+  PublicSubnetRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref AliPublicSubnet
+      RouteTableId: !Ref AliPublicRT
+      
+  AliPrivateRT:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref AliVPC1512
+      Tags:
+        - Key: Name
+          Value: Ali-Private-RT    
+      
+  PrivateSubnetRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref AliPrivateSubnet
+      RouteTableId: !Ref AliPrivateRT    
+  
+  AliPrivateInstance: 
+    Type: 'AWS::EC2::Instance'
+    Properties: 
+      ImageId: "ami-07280e820068b6fff"
+      InstanceType: "t2.micro"
+      KeyName: "win-key-pair"
+      SubnetId: !Ref AliPrivateSubnet
+      SecurityGroupIds : 
+        - !GetAtt "AliPrivateSG.GroupId"
+      Tags:
+        - Key: Name
+          Value: Ali-Private-Instance 
+  
+  AliPublicInstance: 
+    Type: 'AWS::EC2::Instance'
+    Properties: 
+      ImageId: "ami-07280e820068b6fff"
+      InstanceType: "t2.micro"
+      KeyName: "win-key-pair"
+      NetworkInterfaces: 
+        - AssociatePublicIpAddress: "true"
+          DeviceIndex: "0"
+          SubnetId: !Ref AliPublicSubnet
+          GroupSet:
+            - !Ref AliPublicSG
+      Tags:
+        - Key: Name
+          Value: Ali-Public-Instance 
+          
+  AliPrivateSG:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Enable RDP and ICMP access Private Instance
+      VpcId: !Ref AliVPC1512
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3389
+          ToPort: 3389
+          CidrIp: 10.200.1.0/24
+        - IpProtocol: ICMP
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 10.200.1.0/24
+          
+      Tags:
+        - Key: Name
+          Value: Ali-Private-Instance-SG   
+  
+  AliPublicSG:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Enable RDP access Public Instance
+      VpcId: !Ref AliVPC1512
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3389
+          ToPort: 3389
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: Ali-Public-Instance-SG  
